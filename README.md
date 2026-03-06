@@ -2,6 +2,8 @@
 
 A real-time web interface for active OpenClaw sessions.
 
+![Agent Activity Monitor screenshot](docs/screenshot.png)
+
 ## What it shows
 
 - per-session status (`Idle`, `Running tools`, `Model request pending`, `Just replied`)
