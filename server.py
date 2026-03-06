@@ -448,7 +448,8 @@ INDEX_HTML = """<!doctype html>
     .dot-running { background:#fbbf24; } .dot-running::after { background:#fbbf2455; }
     .dot-request { background:#c4b5fd; } .dot-request::after { background:#c4b5fd55; }
 
-    .hud-row { display:grid; grid-template-columns: 1fr 240px; gap:10px; margin-bottom:12px; }
+    .hud-row { display:none; grid-template-columns: 1fr 240px; gap:10px; margin-bottom:12px; }
+    body.scifi .hud-row { display:grid; }
     .mini-bars { display:flex; align-items:flex-end; gap:4px; height:42px; }
     .mini-bars span { width:10px; border-radius:3px 3px 0 0; background: linear-gradient(180deg,#4fd1ff,#4f46e5); animation: barPulse 1.6s ease-in-out infinite; transform-origin: bottom; }
     .mini-bars span:nth-child(2){ animation-delay:.15s;} .mini-bars span:nth-child(3){ animation-delay:.3s;} .mini-bars span:nth-child(4){ animation-delay:.45s;} .mini-bars span:nth-child(5){ animation-delay:.6s;} .mini-bars span:nth-child(6){ animation-delay:.75s;}
@@ -487,7 +488,7 @@ INDEX_HTML = """<!doctype html>
   <div class=\"cursor-glitch\"></div>
   <div class=\"wrap\">
     <div class=\"row\" style=\"align-items:center; margin-bottom:6px;\">
-      <h1 style=\"margin:0\">👻 Agent Activity Monitor</h1>
+      <h1 style=\"margin:0\">Agent Activity Monitor</h1>
       <button id=\"theme-toggle\" class=\"pill\" style=\"background:#0f1720; cursor:pointer;\">Enable Sci‑Fi</button>
     </div>
     <div class=\"sub\" id=\"updated\">Loading...</div>
