@@ -339,12 +339,39 @@ INDEX_HTML = """<!doctype html>
     :root { color-scheme: dark; }
     body { margin: 0; background: #0b0f14; color: #dbe2ea; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     .wrap { max-width: 1280px; margin: 20px auto; padding: 0 14px 24px; }
+
+    /* Optional Sci‑Fi skin */
+    body.scifi {
+      background: radial-gradient(circle at 20% 20%, #0f1b2f 0%, #090d16 45%, #06080f 100%);
+      color: #c9f7ff;
+    }
+    body.scifi::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(80,255,255,.06) 1px, transparent 1px) 0 0/100% 4px,
+        linear-gradient(90deg, rgba(80,255,255,.04) 1px, transparent 1px) 0 0/4px 100%;
+      mix-blend-mode: screen;
+      opacity: .35;
+      z-index: 0;
+    }
+    body.scifi .wrap { position: relative; z-index: 1; }
     h1 { margin: 0 0 8px; font-size: 1.35rem; }
     .sub { color: #90a0b3; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
     .kpi { background: #131a23; border: 1px solid #263140; border-radius: 12px; padding: 10px; }
     .kpi .v { font-size: 1.2rem; font-weight: 700; }
     .card { background: #131a23; border: 1px solid #263140; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    body.scifi .kpi,
+    body.scifi .card {
+      background: linear-gradient(180deg, rgba(8,20,34,.92), rgba(9,14,24,.92));
+      border-color: #2be3ff66;
+      box-shadow: 0 0 14px rgba(43,227,255,.12), inset 0 0 0 1px rgba(62,246,255,.08);
+    }
+    body.scifi .muted { color: #81dff0; }
+    body.scifi .pill { border-color: #2be3ff77; color: #b9fbff; }
     .row { display:flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
     .muted { color: #90a0b3; font-size: .92rem; }
     .pill { padding: 3px 8px; border-radius: 999px; border:1px solid #334155; font-size: .78rem; }
@@ -373,7 +400,10 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
   <div class=\"wrap\">
-    <h1>👻 Agent Activity Monitor</h1>
+    <div class=\"row\" style=\"align-items:center; margin-bottom:6px;\">
+      <h1 style=\"margin:0\">👻 Agent Activity Monitor</h1>
+      <button id=\"theme-toggle\" class=\"pill\" style=\"background:#0f1720; cursor:pointer;\">Enable Sci‑Fi</button>
+    </div>
     <div class=\"sub\" id=\"updated\">Loading...</div>
 
     <div class=\"grid\">
@@ -394,6 +424,19 @@ INDEX_HTML = """<!doctype html>
 
 <script>
 const byId = (id) => document.getElementById(id);
+
+function applyTheme(){
+  const mode = localStorage.getItem('oaa-theme') || 'default';
+  document.body.classList.toggle('scifi', mode === 'scifi');
+  const b = byId('theme-toggle');
+  if (b) b.textContent = mode === 'scifi' ? 'Disable Sci‑Fi' : 'Enable Sci‑Fi';
+}
+
+function toggleTheme(){
+  const current = localStorage.getItem('oaa-theme') || 'default';
+  localStorage.setItem('oaa-theme', current === 'scifi' ? 'default' : 'scifi');
+  applyTheme();
+}
 
 function escapeHtml(s=''){
   return String(s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
@@ -461,6 +504,10 @@ function applyData(data){
   renderModelRequests(data.active_model_requests || []);
   renderSessions(data.sessions || []);
 }
+
+applyTheme();
+const themeBtn = byId('theme-toggle');
+if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
 
 fetch('/api/snapshot').then(r => r.json()).then(applyData).catch(() => {
   byId('updated').textContent = 'Failed to load';
