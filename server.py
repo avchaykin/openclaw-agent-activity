@@ -519,14 +519,20 @@ INDEX_HTML = """<!doctype html>
     <div id=\"sessions\"></div>
   </div>
 
+<script src="https://unpkg.com/powerglitch@latest/dist/powerglitch.min.js"></script>
 <script>
 const byId = (id) => document.getElementById(id);
+let glitchTargets = [];
 
 function applyTheme(){
   const mode = localStorage.getItem('oaa-theme') || 'default';
   document.body.classList.toggle('scifi', mode === 'scifi');
   const b = byId('theme-toggle');
   if (b) b.textContent = mode === 'scifi' ? 'Disable Sci‑Fi' : 'Enable Sci‑Fi';
+  if (mode !== 'scifi') {
+    resetPowerGlitch();
+    glitchTargets = [];
+  }
 }
 
 function toggleTheme(){
@@ -537,6 +543,62 @@ function toggleTheme(){
 
 function escapeHtml(s=''){
   return String(s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+}
+
+function resetPowerGlitch(){
+  if (!window.PowerGlitch || !glitchTargets.length) return;
+  glitchTargets.forEach((el) => {
+    try { PowerGlitch.stop(el); } catch (_) {}
+  });
+}
+
+function applyPowerGlitch(pressure){
+  if (!window.PowerGlitch) return;
+  if (!document.body.classList.contains('scifi')) {
+    resetPowerGlitch();
+    return;
+  }
+
+  if (!glitchTargets.length) {
+    const header = document.querySelector('h1');
+    const kpis = Array.from(document.querySelectorAll('.kpi .v')).slice(0, 5);
+    const statusPills = Array.from(document.querySelectorAll('.pill')).slice(0, 8);
+    glitchTargets = [header, ...kpis, ...statusPills].filter(Boolean);
+  }
+
+  resetPowerGlitch();
+
+  const shake = 0.04 + pressure * 0.22;
+  const sliceCount = Math.round(4 + pressure * 10);
+  const speed = 0.9 - Math.min(0.6, pressure * 0.55);
+  const playMode = pressure > 0.55 ? 'always' : 'hover';
+
+  glitchTargets.forEach((el, idx) => {
+    PowerGlitch.glitch(el, {
+      playMode,
+      timing: {
+        duration: 1200 + idx * 40,
+        iterations: playMode === 'always' ? Infinity : 1,
+      },
+      glitchTimeSpan: {
+        start: 0.08,
+        end: 0.88,
+      },
+      shake: {
+        velocity: speed,
+        amplitudeX: shake,
+        amplitudeY: shake * 0.55,
+      },
+      slice: {
+        count: sliceCount,
+        velocity: speed * 0.9,
+        minHeight: 0.02,
+        maxHeight: 0.12,
+        hueRotate: pressure > 0.4,
+      },
+      pulse: false,
+    });
+  });
 }
 
 function setActivityFX(data){
@@ -564,6 +626,8 @@ function setActivityFX(data){
     document.body.classList.remove('glitch-on');
     document.body.style.setProperty('--g', '0');
   }
+
+  applyPowerGlitch(pressure);
 }
 
 function renderModelRequests(items){
