@@ -457,7 +457,7 @@ INDEX_HTML = """<!doctype html>
     .scan-progress { margin-top:8px; height:8px; border-radius:999px; background:#112233; overflow:hidden; border:1px solid #2a3c52; }
     .scan-progress > div { height:100%; width:0%; background:linear-gradient(90deg,#21d4fd,#b721ff); transition:width .35s ease; }
 
-    .glitch-overlay, .cursor-glitch {
+    .glitch-overlay {
       position: fixed; inset:0; pointer-events:none; z-index: 5;
       opacity: 0;
     }
@@ -468,12 +468,11 @@ INDEX_HTML = """<!doctype html>
       mix-blend-mode: screen;
       transition: opacity .35s ease;
     }
-    .cursor-glitch {
-      background: radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(120,255,255,.16), transparent 58%);
-      transition: opacity .2s ease;
-    }
     body.scifi.glitch-on .glitch-overlay { opacity: var(--g, .15); animation: hudPan 7s linear infinite; }
-    body.scifi.glitch-on .cursor-glitch { opacity: .9; }
+    body.scifi {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="5" fill="none" stroke="%2388f7ff" stroke-width="1.4"/><path d="M14 2v6M14 20v6M2 14h6M20 14h6" stroke="%2388f7ff" stroke-width="1.2" stroke-linecap="round"/></svg>') 14 14, crosshair;
+    }
+    body.scifi button, body.scifi a { cursor: pointer; }
 
     @media (max-width: 980px){
       .grid { grid-template-columns: repeat(2, minmax(140px,1fr)); }
@@ -485,7 +484,6 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
   <div class=\"glitch-overlay\"></div>
-  <div class=\"cursor-glitch\"></div>
   <div class=\"wrap\">
     <div class=\"row\" style=\"align-items:center; margin-bottom:6px;\">
       <h1 style=\"margin:0\">Agent Activity Monitor</h1>
@@ -524,6 +522,7 @@ INDEX_HTML = """<!doctype html>
 <script>
 const byId = (id) => document.getElementById(id);
 let glitchTargets = [];
+let sessionGlitchTargets = [];
 
 function applyTheme(){
   const mode = localStorage.getItem('oaa-theme') || 'default';
@@ -532,6 +531,7 @@ function applyTheme(){
   if (b) b.textContent = mode === 'scifi' ? 'Disable Sci‑Fi' : 'Enable Sci‑Fi';
   if (mode !== 'scifi') {
     resetPowerGlitch();
+    resetSessionGlitch();
     glitchTargets = [];
   }
 }
@@ -602,6 +602,60 @@ function applyPowerGlitch(pressure){
   });
 }
 
+function resetSessionGlitch(){
+  if (!window.PowerGlitch || !sessionGlitchTargets.length) return;
+  sessionGlitchTargets.forEach((el) => {
+    try { PowerGlitch.stop(el); } catch (_) {}
+  });
+  sessionGlitchTargets = [];
+}
+
+function applySessionGlitch(){
+  if (!window.PowerGlitch) return;
+  resetSessionGlitch();
+  if (!document.body.classList.contains('scifi')) return;
+
+  const activeCards = Array.from(document.querySelectorAll('.session-card')).filter((card) => {
+    const st = card.getAttribute('data-status') || 'idle';
+    return st !== 'idle';
+  });
+
+  activeCards.forEach((card) => {
+    const st = card.getAttribute('data-status') || 'idle';
+    const pressure = st === 'running_tools' ? 1 : st === 'model_request_pending' ? 0.8 : 0.6;
+    const targets = [
+      card.querySelector('strong'),
+      ...Array.from(card.querySelectorAll('.pill, .tool')).slice(0, 6),
+      ...Array.from(card.querySelectorAll('.exec-row .mono')).slice(0, 6),
+    ].filter(Boolean);
+
+    targets.forEach((el, idx) => {
+      PowerGlitch.glitch(el, {
+        playMode: 'always',
+        timing: {
+          duration: 1100 + (idx % 5) * 180,
+          iterations: Infinity,
+        },
+        glitchTimeSpan: { start: 0.12, end: 0.86 },
+        shake: {
+          velocity: 0.6,
+          amplitudeX: 0.05 + pressure * 0.16,
+          amplitudeY: 0.03 + pressure * 0.08,
+        },
+        slice: {
+          count: Math.round(4 + pressure * 9),
+          velocity: 0.5,
+          minHeight: 0.02,
+          maxHeight: 0.14,
+          hueRotate: true,
+        },
+        pulse: false,
+      });
+      sessionGlitchTargets.push(el);
+    });
+  });
+}
+
 function setActivityFX(data){
   const summary = data?.summary || {};
   const pressure = Math.min(1, ((summary.running_tools || 0) * 0.22) + ((summary.pending_model_requests || 0) * 0.28) + ((summary.just_replied || 0) * 0.12));
@@ -668,7 +722,7 @@ function renderSessions(list){
     const tools = (s.top_tools || []).map(t => `<span class="tool">${escapeHtml(t.tool)} ×${t.count}</span>`).join('');
 
     return `
-      <div class="card">
+      <div class="card session-card" data-status="${escapeHtml(s.status || 'idle')}">
         <div class="row">
           <div><strong>${escapeHtml(s.session)}</strong></div>
           <span class="pill st-${escapeHtml(s.status)}">${escapeHtml(s.status_label)}</span>
@@ -695,18 +749,12 @@ function applyData(data){
   renderModelRequests(data.active_model_requests || []);
   renderSessions(data.sessions || []);
   setActivityFX(data);
+  applySessionGlitch();
 }
 
 applyTheme();
 const themeBtn = byId('theme-toggle');
 if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
-
-window.addEventListener('mousemove', (ev) => {
-  const x = (ev.clientX / window.innerWidth) * 100;
-  const y = (ev.clientY / window.innerHeight) * 100;
-  document.body.style.setProperty('--mx', `${x}%`);
-  document.body.style.setProperty('--my', `${y}%`);
-});
 
 fetch('/api/snapshot').then(r => r.json()).then(applyData).catch(() => {
   byId('updated').textContent = 'Failed to load';
