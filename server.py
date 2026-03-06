@@ -336,14 +336,23 @@ INDEX_HTML = """<!doctype html>
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <title>OpenClaw Agent Activity Monitor</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&display=swap');
+
     :root { color-scheme: dark; }
     body { margin: 0; background: #0b0f14; color: #dbe2ea; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     .wrap { max-width: 1280px; margin: 20px auto; padding: 0 14px 24px; }
 
     /* Optional Sci‑Fi skin */
+    @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 12px rgba(43,227,255,.12), inset 0 0 0 1px rgba(62,246,255,.08);} 50% { box-shadow: 0 0 22px rgba(43,227,255,.30), inset 0 0 0 1px rgba(120,255,255,.18);} }
+    @keyframes hudPan { 0% { background-position: 0 0, 0 0, 0 0; } 100% { background-position: 0 120px, 120px 0, 200px 0; } }
+    @keyframes neonFlicker { 0%,19%,21%,23%,80%,100% { opacity: 1; } 20%,22%,81% { opacity: .84; } }
+    @keyframes pingDot { 0% { transform: scale(.8); opacity: .8; } 70% { transform: scale(1.35); opacity: 0; } 100% { transform: scale(1.35); opacity: 0; } }
+
     body.scifi {
-      background: radial-gradient(circle at 20% 20%, #0f1b2f 0%, #090d16 45%, #06080f 100%);
+      background: radial-gradient(circle at 20% 20%, #132542 0%, #0a0f1d 38%, #06080f 100%);
       color: #c9f7ff;
+      font-family: 'Orbitron', system-ui, sans-serif;
+      letter-spacing: .2px;
     }
     body.scifi::before {
       content: "";
@@ -351,13 +360,18 @@ INDEX_HTML = """<!doctype html>
       inset: 0;
       pointer-events: none;
       background:
-        linear-gradient(rgba(80,255,255,.06) 1px, transparent 1px) 0 0/100% 4px,
-        linear-gradient(90deg, rgba(80,255,255,.04) 1px, transparent 1px) 0 0/4px 100%;
+        linear-gradient(rgba(80,255,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(80,255,255,.04) 1px, transparent 1px),
+        repeating-linear-gradient(0deg, rgba(12,20,33,.0), rgba(12,20,33,.0) 2px, rgba(0,0,0,.15) 3px, rgba(0,0,0,.15) 4px);
+      background-size: 100% 4px, 4px 100%, 100% 6px;
       mix-blend-mode: screen;
-      opacity: .35;
+      opacity: .32;
       z-index: 0;
+      animation: hudPan 24s linear infinite;
     }
     body.scifi .wrap { position: relative; z-index: 1; }
+    body.scifi h1 { font-family: 'Orbitron', sans-serif; text-transform: uppercase; letter-spacing: 1.2px; text-shadow: 0 0 16px rgba(44,227,255,.45); animation: neonFlicker 5s linear infinite; }
+    body.scifi .mono { font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
     h1 { margin: 0 0 8px; font-size: 1.35rem; }
     .sub { color: #90a0b3; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
@@ -366,12 +380,37 @@ INDEX_HTML = """<!doctype html>
     .card { background: #131a23; border: 1px solid #263140; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
     body.scifi .kpi,
     body.scifi .card {
-      background: linear-gradient(180deg, rgba(8,20,34,.92), rgba(9,14,24,.92));
+      position: relative;
+      background: linear-gradient(180deg, rgba(7,24,40,.92), rgba(7,12,24,.92));
       border-color: #2be3ff66;
-      box-shadow: 0 0 14px rgba(43,227,255,.12), inset 0 0 0 1px rgba(62,246,255,.08);
+      animation: pulseGlow 3.4s ease-in-out infinite;
+      backdrop-filter: blur(2px);
+    }
+    body.scifi .kpi::after,
+    body.scifi .card::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(120deg, rgba(79,247,255,.5), rgba(92,84,255,.35), rgba(79,247,255,.5));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
     }
     body.scifi .muted { color: #81dff0; }
-    body.scifi .pill { border-color: #2be3ff77; color: #b9fbff; }
+    body.scifi .pill { border-color: #2be3ff77; color: #b9fbff; background: rgba(12,28,49,.55); }
+    body.scifi .tool { background:#081a2b; border-color:#2be3ff55; color:#b9fbff; }
+    body.scifi #theme-toggle {
+      font-family: 'Orbitron', sans-serif;
+      color:#c7fbff;
+      border-color:#3be8ff88;
+      background: linear-gradient(120deg, rgba(8,34,58,.9), rgba(36,32,82,.85));
+      box-shadow: 0 0 12px rgba(59,232,255,.24);
+      transition: transform .18s ease, box-shadow .2s ease;
+    }
+    body.scifi #theme-toggle:hover { transform: translateY(-1px); box-shadow: 0 0 20px rgba(59,232,255,.34); }
     .row { display:flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
     .muted { color: #90a0b3; font-size: .92rem; }
     .pill { padding: 3px 8px; border-radius: 999px; border:1px solid #334155; font-size: .78rem; }
@@ -383,7 +422,10 @@ INDEX_HTML = """<!doctype html>
     .tool { background:#0f1720; border:1px solid #2a3646; border-radius: 999px; padding:2px 8px; font-size:.78rem; }
     .sep { height:1px; background:#233040; margin:8px 0; }
     .exec-log { margin-top:8px; border:1px solid #263140; border-radius:10px; overflow:hidden; max-height: 260px; overflow-y: auto; }
+    .exec-log::-webkit-scrollbar { width: 8px; height: 8px; }
+    .exec-log::-webkit-scrollbar-thumb { background: #35506a; border-radius: 999px; }
     .exec-row { display:grid; grid-template-columns: 145px 90px 1fr 160px 100px; gap:8px; padding:6px 8px; border-top:1px solid #1e2937; font-size:.82rem; align-items:center; }
+    .exec-row:hover { background: rgba(70,110,150,.08); }
     .exec-row:first-child { border-top:none; }
     .exec-head { background:#0f1720; color:#9fb0c3; font-weight:600; }
     .st-ok { color:#34d399; }
@@ -391,6 +433,20 @@ INDEX_HTML = """<!doctype html>
     .st-running { color:#fbbf24; }
     .st-request { color:#c4b5fd; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    body.scifi .exec-log { border-color:#2be3ff66; box-shadow: inset 0 0 18px rgba(34,214,255,.1); }
+    body.scifi .exec-log::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #2be3ff, #5f67ff); }
+    body.scifi .exec-row:hover { background: rgba(43,227,255,.12); }
+    body.scifi .st-running { color:#ffd166; text-shadow: 0 0 10px rgba(255,209,102,.6); }
+    body.scifi .st-ok { color:#7bffcf; text-shadow: 0 0 10px rgba(123,255,207,.45); }
+    body.scifi .st-error { color:#ff8da1; text-shadow: 0 0 10px rgba(255,141,161,.45); }
+    body.scifi .st-request { color:#c9b6ff; text-shadow: 0 0 10px rgba(201,182,255,.45); }
+    .status-chip { display:inline-flex; align-items:center; gap:6px; }
+    .dot { width:7px; height:7px; border-radius:999px; display:inline-block; position:relative; }
+    .dot::after { content:""; position:absolute; inset:0; border-radius:999px; animation: pingDot 1.4s infinite; }
+    .dot-ok { background:#34d399; } .dot-ok::after { background:#34d39955; }
+    .dot-error { background:#f87171; } .dot-error::after { background:#f8717155; }
+    .dot-running { background:#fbbf24; } .dot-running::after { background:#fbbf2455; }
+    .dot-request { background:#c4b5fd; } .dot-request::after { background:#c4b5fd55; }
     @media (max-width: 980px){
       .grid { grid-template-columns: repeat(2, minmax(140px,1fr)); }
       .exec-row { grid-template-columns: 1fr; }
@@ -457,10 +513,12 @@ function renderExecRows(execLog){
   }
 
   const rows = execLog.slice(-10).reverse().map(x => {
-    const statusCls = `st-${escapeHtml(x.status || 'running')}`;
+    const status = escapeHtml(x.status || 'running');
+    const statusCls = `st-${status}`;
+    const dotCls = `dot-${status}`;
     const dur = x.duration_sec != null ? `${x.duration_sec}s` : '—';
     const start = x.started_at || '—';
-    return `<div class="exec-row"><div class="mono">${escapeHtml(start)}</div><div><span class="pill">${escapeHtml(x.tool || '')}</span></div><div class="mono">${escapeHtml(x.details || '')}</div><div class="mono">${escapeHtml(dur)}</div><div class="mono ${statusCls}">${escapeHtml(x.status || '')}</div></div>`;
+    return `<div class="exec-row"><div class="mono">${escapeHtml(start)}</div><div><span class="pill">${escapeHtml(x.tool || '')}</span></div><div class="mono">${escapeHtml(x.details || '')}</div><div class="mono">${escapeHtml(dur)}</div><div class="mono ${statusCls}"><span class="status-chip"><span class="dot ${dotCls}"></span>${status}</span></div></div>`;
   }).join('');
 
   return `<div class="exec-log"><div class="exec-row exec-head"><div>Started</div><div>Type</div><div>Details</div><div>Duration</div><div>Status</div></div>${rows}</div>`;
