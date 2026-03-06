@@ -447,20 +447,61 @@ INDEX_HTML = """<!doctype html>
     .dot-error { background:#f87171; } .dot-error::after { background:#f8717155; }
     .dot-running { background:#fbbf24; } .dot-running::after { background:#fbbf2455; }
     .dot-request { background:#c4b5fd; } .dot-request::after { background:#c4b5fd55; }
+
+    .hud-row { display:grid; grid-template-columns: 1fr 240px; gap:10px; margin-bottom:12px; }
+    .mini-bars { display:flex; align-items:flex-end; gap:4px; height:42px; }
+    .mini-bars span { width:10px; border-radius:3px 3px 0 0; background: linear-gradient(180deg,#4fd1ff,#4f46e5); animation: barPulse 1.6s ease-in-out infinite; transform-origin: bottom; }
+    .mini-bars span:nth-child(2){ animation-delay:.15s;} .mini-bars span:nth-child(3){ animation-delay:.3s;} .mini-bars span:nth-child(4){ animation-delay:.45s;} .mini-bars span:nth-child(5){ animation-delay:.6s;} .mini-bars span:nth-child(6){ animation-delay:.75s;}
+    @keyframes barPulse { 0%,100% { transform: scaleY(.35);} 50% { transform: scaleY(1);} }
+    .scan-progress { margin-top:8px; height:8px; border-radius:999px; background:#112233; overflow:hidden; border:1px solid #2a3c52; }
+    .scan-progress > div { height:100%; width:0%; background:linear-gradient(90deg,#21d4fd,#b721ff); transition:width .35s ease; }
+
+    .glitch-overlay, .cursor-glitch {
+      position: fixed; inset:0; pointer-events:none; z-index: 5;
+      opacity: 0;
+    }
+    .glitch-overlay {
+      background:
+        repeating-linear-gradient(0deg, rgba(255,0,120,.0), rgba(255,0,120,.0) 2px, rgba(255,0,120,.07) 3px, rgba(255,0,120,.0) 4px),
+        repeating-linear-gradient(90deg, rgba(0,255,255,.0), rgba(0,255,255,.0) 3px, rgba(0,255,255,.05) 4px, rgba(0,255,255,.0) 5px);
+      mix-blend-mode: screen;
+      transition: opacity .35s ease;
+    }
+    .cursor-glitch {
+      background: radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(120,255,255,.16), transparent 58%);
+      transition: opacity .2s ease;
+    }
+    body.scifi.glitch-on .glitch-overlay { opacity: var(--g, .15); animation: hudPan 7s linear infinite; }
+    body.scifi.glitch-on .cursor-glitch { opacity: .9; }
+
     @media (max-width: 980px){
       .grid { grid-template-columns: repeat(2, minmax(140px,1fr)); }
+      .hud-row { grid-template-columns: 1fr; }
       .exec-row { grid-template-columns: 1fr; }
       .exec-head { display:none; }
     }
   </style>
 </head>
 <body>
+  <div class=\"glitch-overlay\"></div>
+  <div class=\"cursor-glitch\"></div>
   <div class=\"wrap\">
     <div class=\"row\" style=\"align-items:center; margin-bottom:6px;\">
       <h1 style=\"margin:0\">👻 Agent Activity Monitor</h1>
       <button id=\"theme-toggle\" class=\"pill\" style=\"background:#0f1720; cursor:pointer;\">Enable Sci‑Fi</button>
     </div>
     <div class=\"sub\" id=\"updated\">Loading...</div>
+
+    <div class=\"hud-row\">
+      <div class=\"card\">
+        <div class=\"row\"><strong>Signal activity</strong><span class=\"muted\" id=\"activity-label\">idle</span></div>
+        <div class=\"mini-bars\" id=\"mini-bars\"><span style=\"height:20%\"></span><span style=\"height:35%\"></span><span style=\"height:50%\"></span><span style=\"height:42%\"></span><span style=\"height:65%\"></span><span style=\"height:30%\"></span></div>
+      </div>
+      <div class=\"card\">
+        <div class=\"muted\">Neural load</div>
+        <div class=\"scan-progress\"><div id=\"scan-fill\"></div></div>
+      </div>
+    </div>
 
     <div class=\"grid\">
       <div class=\"kpi\"><div class=\"muted\">Active sessions</div><div class=\"v\" id=\"kpi-sessions\">0</div></div>
@@ -496,6 +537,33 @@ function toggleTheme(){
 
 function escapeHtml(s=''){
   return String(s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+}
+
+function setActivityFX(data){
+  const summary = data?.summary || {};
+  const pressure = Math.min(1, ((summary.running_tools || 0) * 0.22) + ((summary.pending_model_requests || 0) * 0.28) + ((summary.just_replied || 0) * 0.12));
+  const label = pressure > 0.66 ? 'high' : pressure > 0.28 ? 'medium' : 'idle';
+  const lbl = byId('activity-label');
+  if (lbl) lbl.textContent = label;
+
+  const fill = byId('scan-fill');
+  if (fill) fill.style.width = `${Math.round((pressure * 85) + 10)}%`;
+
+  const bars = document.querySelectorAll('#mini-bars span');
+  bars.forEach((b, i) => {
+    const base = 18 + ((i * 11) % 37);
+    const jitter = Math.round(Math.random() * (18 + pressure * 42));
+    b.style.height = `${Math.min(100, base + jitter)}%`;
+    b.style.animationDuration = `${1.8 - Math.min(.9, pressure)}s`;
+  });
+
+  if (document.body.classList.contains('scifi')) {
+    document.body.classList.add('glitch-on');
+    document.body.style.setProperty('--g', String(0.08 + pressure * 0.45));
+  } else {
+    document.body.classList.remove('glitch-on');
+    document.body.style.setProperty('--g', '0');
+  }
 }
 
 function renderModelRequests(items){
@@ -561,11 +629,19 @@ function applyData(data){
   byId('kpi-idle').textContent = data.summary?.idle ?? 0;
   renderModelRequests(data.active_model_requests || []);
   renderSessions(data.sessions || []);
+  setActivityFX(data);
 }
 
 applyTheme();
 const themeBtn = byId('theme-toggle');
 if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+
+window.addEventListener('mousemove', (ev) => {
+  const x = (ev.clientX / window.innerWidth) * 100;
+  const y = (ev.clientY / window.innerHeight) * 100;
+  document.body.style.setProperty('--mx', `${x}%`);
+  document.body.style.setProperty('--my', `${y}%`);
+});
 
 fetch('/api/snapshot').then(r => r.json()).then(applyData).catch(() => {
   byId('updated').textContent = 'Failed to load';
