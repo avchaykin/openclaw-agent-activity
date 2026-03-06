@@ -133,6 +133,7 @@ def summarize_session(path: Path):
 
     tool_runs = {}
     tool_runs_order = []
+    user_requests = []
 
     for e in messages:
         m = e.get("message") or {}
@@ -200,37 +201,43 @@ def summarize_session(path: Path):
             txt = extract_text(content)
             if txt:
                 last_user_text = txt
+                user_requests.append({
+                    "id": f"user-{len(user_requests)+1}",
+                    "tool": "USER",
+                    "details": (txt[:220] + "…") if len(txt) > 220 else txt,
+                    "started_ts": evt_ts,
+                    "ended_ts": evt_ts,
+                    "status": "request",
+                    "duration_sec": None,
+                })
             last_user_ts = evt_ts or last_user_ts
 
     running_calls = [r for r in tool_runs.values() if r["status"] == "running"]
 
-    # Status inference (fixed): do not label stale sessions as "forming response"
+    # Status inference: avoid stale "responding" states.
     now = time.time()
     status = "idle"
-    status_label = "Ожидание"
+    status_label = "Idle"
 
     if running_calls:
         status = "running_tools"
-        status_label = "Выполняет инструменты"
+        status_label = "Running tools"
     elif last_role == "user" and (last_assistant_ts is None or (last_user_ts or 0) > (last_assistant_ts or 0)):
         status = "model_request_pending"
-        status_label = "Запрос к модели в ожидании"
+        status_label = "Model request pending"
     else:
-        # very recent assistant activity is shown as "just replied" only for a short window
         if last_assistant_ts and (now - last_assistant_ts) <= RECENT_IDLE_SEC:
             status = "just_replied"
-            status_label = "Только что ответил"
+            status_label = "Just replied"
         else:
             status = "idle"
-            status_label = "Ожидание"
+            status_label = "Idle"
 
-    # compact tool stats
     tool_counter = Counter([r["tool"] for r in tool_runs.values()])
     top_tools = [{"tool": t, "count": c} for t, c in tool_counter.most_common(8)]
 
-    # one-line execution log (start -> final status on same line)
     execution_log = []
-    for call_id in tool_runs_order[-24:]:
+    for call_id in tool_runs_order[-28:]:
         r = tool_runs.get(call_id)
         if not r:
             continue
@@ -243,8 +250,27 @@ def summarize_session(path: Path):
                 "ended_at": ts_to_iso(r.get("ended_ts")),
                 "status": r["status"],
                 "duration_sec": r.get("duration_sec"),
+                "sort_ts": r.get("started_ts") or r.get("ended_ts") or 0,
             }
         )
+
+    for u in user_requests[-12:]:
+        execution_log.append(
+            {
+                "id": u["id"],
+                "tool": u["tool"],
+                "details": u["details"],
+                "started_at": ts_to_iso(u.get("started_ts")),
+                "ended_at": ts_to_iso(u.get("ended_ts")),
+                "status": u["status"],
+                "duration_sec": None,
+                "sort_ts": u.get("started_ts") or 0,
+            }
+        )
+
+    execution_log.sort(key=lambda x: x.get("sort_ts") or 0)
+    for row in execution_log:
+        row.pop("sort_ts", None)
 
     return {
         "session": path.name.replace(".jsonl", ""),
@@ -329,13 +355,14 @@ INDEX_HTML = """<!doctype html>
     .tools { display:flex; gap:6px; flex-wrap: wrap; margin-top:8px; }
     .tool { background:#0f1720; border:1px solid #2a3646; border-radius: 999px; padding:2px 8px; font-size:.78rem; }
     .sep { height:1px; background:#233040; margin:8px 0; }
-    .exec-log { margin-top:8px; border:1px solid #263140; border-radius:10px; overflow:hidden; }
+    .exec-log { margin-top:8px; border:1px solid #263140; border-radius:10px; overflow:hidden; max-height: 260px; overflow-y: auto; }
     .exec-row { display:grid; grid-template-columns: 145px 90px 1fr 160px 100px; gap:8px; padding:6px 8px; border-top:1px solid #1e2937; font-size:.82rem; align-items:center; }
     .exec-row:first-child { border-top:none; }
     .exec-head { background:#0f1720; color:#9fb0c3; font-weight:600; }
     .st-ok { color:#34d399; }
     .st-error { color:#f87171; }
     .st-running { color:#fbbf24; }
+    .st-request { color:#c4b5fd; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     @media (max-width: 980px){
       .grid { grid-template-columns: repeat(2, minmax(140px,1fr)); }
@@ -347,19 +374,19 @@ INDEX_HTML = """<!doctype html>
 <body>
   <div class=\"wrap\">
     <h1>👻 Agent Activity Monitor</h1>
-    <div class=\"sub\" id=\"updated\">Загрузка...</div>
+    <div class=\"sub\" id=\"updated\">Loading...</div>
 
     <div class=\"grid\">
-      <div class=\"kpi\"><div class=\"muted\">Активные сессии</div><div class=\"v\" id=\"kpi-sessions\">0</div></div>
-      <div class=\"kpi\"><div class=\"muted\">Выполняют тулы</div><div class=\"v\" id=\"kpi-tools\">0</div></div>
-      <div class=\"kpi\"><div class=\"muted\">Ожидают модель</div><div class=\"v\" id=\"kpi-model\">0</div></div>
-      <div class=\"kpi\"><div class=\"muted\">Только что ответили</div><div class=\"v\" id=\"kpi-replied\">0</div></div>
+      <div class=\"kpi\"><div class=\"muted\">Active sessions</div><div class=\"v\" id=\"kpi-sessions\">0</div></div>
+      <div class=\"kpi\"><div class=\"muted\">Running tools</div><div class=\"v\" id=\"kpi-tools\">0</div></div>
+      <div class=\"kpi\"><div class=\"muted\">Pending model</div><div class=\"v\" id=\"kpi-model\">0</div></div>
+      <div class=\"kpi\"><div class=\"muted\">Just replied</div><div class=\"v\" id=\"kpi-replied\">0</div></div>
       <div class=\"kpi\"><div class=\"muted\">Idle</div><div class=\"v\" id=\"kpi-idle\">0</div></div>
     </div>
 
     <div class=\"card\">
-      <div class=\"row\"><strong>Активные запросы к моделям</strong><span class=\"muted\">без payload</span></div>
-      <div id=\"model-reqs\" class=\"muted\">Нет активных запросов</div>
+      <div class=\"row\"><strong>Active model requests</strong><span class=\"muted\">status only, no payload</span></div>
+      <div id=\"model-reqs\" class=\"muted\">No active requests</div>
     </div>
 
     <div id=\"sessions\"></div>
@@ -375,15 +402,15 @@ function escapeHtml(s=''){
 function renderModelRequests(items){
   const root = byId('model-reqs');
   if (!items || !items.length){
-    root.textContent = 'Нет активных запросов';
+    root.textContent = 'No active requests';
     return;
   }
-  root.innerHTML = items.map(i => `• <b>${escapeHtml(i.session)}</b> · ${escapeHtml(i.status)} · ${escapeHtml(i.model || 'unknown')} · с ${escapeHtml(i.since || '—')}`).join('<br/>');
+  root.innerHTML = items.map(i => `• <b>${escapeHtml(i.session)}</b> · ${escapeHtml(i.status)} · ${escapeHtml(i.model || 'unknown')} · since ${escapeHtml(i.since || '—')}`).join('<br/>');
 }
 
 function renderExecRows(execLog){
   if (!execLog || !execLog.length){
-    return '<div class="muted" style="padding:8px">Нет выполнений тулов</div>';
+    return '<div class="muted" style="padding:8px">No tool executions yet</div>';
   }
 
   const rows = execLog.slice(-10).reverse().map(x => {
@@ -393,13 +420,13 @@ function renderExecRows(execLog){
     return `<div class="exec-row"><div class="mono">${escapeHtml(start)}</div><div><span class="pill">${escapeHtml(x.tool || '')}</span></div><div class="mono">${escapeHtml(x.details || '')}</div><div class="mono">${escapeHtml(dur)}</div><div class="mono ${statusCls}">${escapeHtml(x.status || '')}</div></div>`;
   }).join('');
 
-  return `<div class="exec-log"><div class="exec-row exec-head"><div>Старт</div><div>Тул</div><div>Детали</div><div>Длительность</div><div>Статус</div></div>${rows}</div>`;
+  return `<div class="exec-log"><div class="exec-row exec-head"><div>Started</div><div>Type</div><div>Details</div><div>Duration</div><div>Status</div></div>${rows}</div>`;
 }
 
 function renderSessions(list){
   const root = byId('sessions');
   if (!list.length){
-    root.innerHTML = '<div class="card muted">Нет активных сессий за выбранный период.</div>';
+    root.innerHTML = '<div class="card muted">No active sessions in the selected time window.</div>';
     return;
   }
 
@@ -412,12 +439,12 @@ function renderSessions(list){
           <div><strong>${escapeHtml(s.session)}</strong></div>
           <span class="pill st-${escapeHtml(s.status)}">${escapeHtml(s.status_label)}</span>
         </div>
-        <div class="muted">Модель: ${escapeHtml(s.model || 'unknown')} · обновлено: ${escapeHtml(s.updated_at || '—')}</div>
-        <div class="muted">Сообщений: user ${s.counts?.user_messages || 0} · assistant ${s.counts?.assistant_messages || 0} · tool calls ${s.counts?.tool_calls || 0} · tool results ${s.counts?.tool_results || 0} · running ${s.counts?.running_now || 0}</div>
+        <div class="muted">Model: ${escapeHtml(s.model || 'unknown')} · updated: ${escapeHtml(s.updated_at || '—')}</div>
+        <div class="muted">Messages: user ${s.counts?.user_messages || 0} · assistant ${s.counts?.assistant_messages || 0} · tool calls ${s.counts?.tool_calls || 0} · tool results ${s.counts?.tool_results || 0} · running ${s.counts?.running_now || 0}</div>
         <div class="sep"></div>
-        <div class="muted">Последний user: ${escapeHtml(s.last_user || '—')}</div>
-        <div class="muted">Последний assistant: ${escapeHtml(s.last_assistant || '—')}</div>
-        <div class="tools">${tools || '<span class="muted">Тулы не обнаружены</span>'}</div>
+        <div class="muted">Last user: ${escapeHtml(s.last_user || '—')}</div>
+        <div class="muted">Last assistant: ${escapeHtml(s.last_assistant || '—')}</div>
+        <div class="tools">${tools || '<span class="muted">No tools detected</span>'}</div>
         ${renderExecRows(s.execution_log || [])}
       </div>
     `;
@@ -425,7 +452,7 @@ function renderSessions(list){
 }
 
 function applyData(data){
-  byId('updated').textContent = `Обновлено: ${data.generated_at}`;
+  byId('updated').textContent = `Updated: ${data.generated_at}`;
   byId('kpi-sessions').textContent = data.summary?.active_sessions ?? 0;
   byId('kpi-tools').textContent = data.summary?.running_tools ?? 0;
   byId('kpi-model').textContent = data.summary?.pending_model_requests ?? 0;
@@ -436,7 +463,7 @@ function applyData(data){
 }
 
 fetch('/api/snapshot').then(r => r.json()).then(applyData).catch(() => {
-  byId('updated').textContent = 'Ошибка загрузки';
+  byId('updated').textContent = 'Failed to load';
 });
 
 const es = new EventSource('/events');

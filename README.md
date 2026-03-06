@@ -1,24 +1,31 @@
 # Agent Activity Monitor
 
-Веб-интерфейс для live-обзора активных OpenClaw-сессий:
+A real-time web interface for active OpenClaw sessions.
 
-- статус по каждой сессии (ожидание / выполняет тулы / pending model)
-- какие тулы дергаются чаще всего
-- последние события tool call / tool result
-- блок активных запросов к моделям (только статус, без payload)
+## What it shows
 
-## Запуск
+- per-session status (`Idle`, `Running tools`, `Model request pending`, `Just replied`)
+- top tools used in each session
+- active model requests (status only, no payload/details)
+- one-line execution log (start time → final status on the same row)
+- user-request markers inside the log (`USER` entries)
+
+## Run
 
 ```bash
-cd /Users/chay/.openclaw/workspace/agent-activity-monitor
+cd /Users/chay/.openclaw/workspace/tmp/openclaw-agent-activity
 python3 server.py
 ```
 
-Открой: `http://127.0.0.1:8124`
+Open:
 
-## Переменные окружения
+- local: `http://127.0.0.1:8124`
+- LAN: `http://<your-ip>:8124`
 
-- `AGENT_MONITOR_PORT` — порт (по умолчанию `8124`)
-- `OPENCLAW_SESSIONS_DIR` — путь к директории `.jsonl` сессий
-- `AGENT_MONITOR_ACTIVE_HOURS` — окно активных сессий (часы, default `24`)
-- `AGENT_MONITOR_TAIL_LINES` — сколько последних строк читать из каждой сессии (default `500`)
+## Environment variables
+
+- `AGENT_MONITOR_PORT` — server port (default: `8124`)
+- `OPENCLAW_SESSIONS_DIR` — path to OpenClaw session `.jsonl` files
+- `AGENT_MONITOR_ACTIVE_HOURS` — active-session time window in hours (default: `24`)
+- `AGENT_MONITOR_TAIL_LINES` — number of recent lines to parse from each session file (default: `700`)
+- `AGENT_MONITOR_RECENT_SEC` — seconds to keep `Just replied` state before switching to `Idle` (default: `25`)
